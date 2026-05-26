@@ -1,0 +1,20 @@
+---
+description: Folio project requirements and coding guardrails
+alwaysApply: true
+---
+
+# Folio project Rules
+
+Follow these rules when making changes for this project:
+
+- Read the surrounding PHP, SQLite, and test patterns before changing code. Keep solutions small and consistent with the existing plain PHP style.
+- Do not edit `schema.sql` for feature schema changes. Add schema changes as ordered SQL files under `migrations/`, and keep fresh setup working through `seed.php`.
+- Keep `docker compose up` working from a fresh clone. The app should reseed cleanly and start without manual database steps.
+- Add or update more than one test in `tests/test.php` for each feature built.
+- Log document creation, scheduling changes, and share actions with `audit_log()`. Include useful details such as document ID, readable ID, recipient email, and publish time when relevant.
+- Log all major state-changing actions, including creation, updates, scheduling, publishing, sharing, and any new feature actions, in the audit log to ensure a complete record of activity.
+- Use prepared statements for all SQL that includes user-controlled values.
+- Escape rendered user-controlled output with `h()`.
+- Prefer straightforward server-side validation over client-only validation.
+- Keep UI changes modest and accessible using the existing CSS classes and layout helpers.
+- After substantive edits, run `docker compose exec app php tests/test.php` when the container is running, or document why tests were not run.
