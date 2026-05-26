@@ -27,6 +27,19 @@ if (!$doc) {
     exit;
 }
 
+if (!document_is_published($doc)) {
+    http_response_code(403);
+    render_header('Not yet available');
+    ?>
+    <div class="centered-message">
+        <h1>Document not yet available</h1>
+        <p>This document is scheduled to become available at <?= h($doc['publish_at']) ?> UTC.</p>
+    </div>
+    <?php
+    render_footer();
+    exit;
+}
+
 render_header($doc['title']);
 ?>
 

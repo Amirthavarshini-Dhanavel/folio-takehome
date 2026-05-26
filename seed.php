@@ -2,7 +2,7 @@
 
 require __DIR__ . '/lib/bootstrap.php';
 
-$dbPath = __DIR__ . '/db.sqlite';
+$dbPath = db_path();
 if (file_exists($dbPath)) {
     unlink($dbPath);
 }
@@ -23,12 +23,13 @@ $pdo->exec("
 ");
 
 $stmt = $pdo->prepare('
-    INSERT INTO documents (title, body, created_by)
-    VALUES (?, ?, 1)
+    INSERT INTO documents (title, body, created_by, publish_at)
+    VALUES (?, ?, 1, ?)
 ');
 $stmt->execute([
     'Welcome Packet',
     "Welcome to Folio!\n\nThis is the body of your welcome packet.",
+    current_publish_at(),
 ]);
 $docId = (int) $pdo->lastInsertId();
 

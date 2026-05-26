@@ -9,18 +9,35 @@ $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = trim($_POST['title'] ?? '');
     $body = trim($_POST['body'] ?? '');
+    $publishAtInput = $_POST['publish_at'] ?? '';
+    $timezoneOffsetInput = $_POST['timezone_offset_minutes'] ?? null;
+    $timezoneOffset = filter_var($timezoneOffsetInput, FILTER_VALIDATE_INT, ['options' => ['min_range' => -840, 'max_range' => 840]]);
+    if ($timezoneOffset === false) {
+        $timezoneOffset = null;
+    }
 
     if ($title === '' || $body === '') {
         $error = 'Title and body are required.';
     } else {
+        try {
+            $publishAt = normalize_publish_at_input($publishAtInput, $timezoneOffset);
+        } catch (InvalidArgumentException $e) {
+            $error = $e->getMessage();
+        }
+    }
+
+    if ($error === null) {
         $stmt = db()->prepare('
-            INSERT INTO documents (title, body, created_by)
-            VALUES (?, ?, ?)
+            INSERT INTO documents (title, body, created_by, publish_at)
+            VALUES (?, ?, ?, ?)
         ');
-        $stmt->execute([$title, $body, $staff['id']]);
+        $stmt->execute([$title, $body, $staff['id'], $publishAt]);
         $docId = (int) db()->lastInsertId();
 
-        audit_log('create', 'document', $docId, ['title' => $title]);
+        audit_log('create', 'document', $docId, [
+            'title' => $title,
+            'publish_at' => $publishAt,
+        ]);
 
         header('Location: /admin.php?created=' . $docId);
         exit;
@@ -59,9 +76,18 @@ render_header('Admin', $staff);
             <label for="body">Body</label>
             <textarea id="body" name="body" required></textarea>
         </div>
+        <div class="form-field">
+            <label for="publish_at">Publish at</label>
+            <input type="datetime-local" id="publish_at" name="publish_at">
+            <input type="hidden" id="timezone_offset_minutes" name="timezone_offset_minutes">
+        </div>
         <button type="submit" class="btn">Create document</button>
     </form>
 </section>
+
+<script>
+document.getElementById('timezone_offset_minutes').value = String(new Date().getTimezoneOffset());
+</script>
 
 <section class="card">
     <h2 class="card-title">Documents</h2>
@@ -75,6 +101,7 @@ render_header('Admin', $staff);
                     <th>Title</th>
                     <th>Creator</th>
                     <th>Created</th>
+                    <th>Publishes (UTC)</th>
                     <th></th>
                 </tr>
             </thead>
@@ -85,6 +112,7 @@ render_header('Admin', $staff);
                         <td><?= h($d['title']) ?></td>
                         <td><?= h($d['creator_name']) ?></td>
                         <td><?= h($d['created_at']) ?></td>
+                        <td><?= h($d['publish_at'] ?? '') ?></td>
                         <td><a href="/share.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Create share →</a></td>
                     </tr>
                 <?php endforeach ?>
