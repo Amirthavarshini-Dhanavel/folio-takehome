@@ -1,6 +1,8 @@
 <?php
 
 const TEST_DB_PATH = __DIR__ . '/test_db.sqlite';
+const SEARCH_ALPHA_TITLE = 'Alpha Project';
+const SEARCH_BUDGET_TITLE = 'Budget Review 2026';
 
 putenv('FOLIO_DB_PATH=' . TEST_DB_PATH);
 
@@ -75,6 +77,11 @@ function render_share_link(string $token): string {
 
 function submit_admin_document(array $post): string {
     $code = '$_SERVER["REQUEST_METHOD"] = "POST"; $_POST = ' . var_export($post, true) . '; include ' . var_export(__DIR__ . '/../public/admin.php', true) . ';';
+    return run_php_with_test_db($code);
+}
+
+function render_admin_page(array $query = []): string {
+    $code = '$_SERVER["REQUEST_METHOD"] = "GET"; $_GET = ' . var_export($query, true) . '; include ' . var_export(__DIR__ . '/../public/admin.php', true) . ';';
     return run_php_with_test_db($code);
 }
 
@@ -269,6 +276,29 @@ test('document titles are unique regardless of case', function () {
     $rows = $stmt->fetchAll();
     assert_true(count($rows) === 1, 'case-insensitive duplicate title should be rejected');
     assert_true(strpos($rows[0]['readable_id'], 'quarterly-update-') === 0, 'readable ID should use title slug');
+});
+
+test('admin document search renders live filtering controls', function () {
+    submit_admin_document([
+        'title' => SEARCH_ALPHA_TITLE,
+        'body' => 'Alpha project body.',
+        'publish_at' => '',
+    ]);
+    submit_admin_document([
+        'title' => SEARCH_BUDGET_TITLE,
+        'body' => 'Budget review body.',
+        'publish_at' => '',
+    ]);
+
+    $allOutput = render_admin_page();
+    assert_contains(SEARCH_ALPHA_TITLE, $allOutput);
+    assert_contains(SEARCH_BUDGET_TITLE, $allOutput);
+    assert_contains('id="document-search"', $allOutput);
+    assert_contains('data-title="alpha project"', $allOutput);
+    assert_contains('data-title="budget review 2026"', $allOutput);
+    assert_contains('documentSearchInput.addEventListener(\'input\', updateDocumentSearch);', $allOutput);
+    assert_contains('No documents match your search.', $allOutput);
+    assert_true(strpos($allOutput, '<button type="submit" class="btn">Search</button>') === false, 'live search should not render a submit button');
 });
 
 test('staff can create share by readable document ID while recipient link uses readable token', function () {

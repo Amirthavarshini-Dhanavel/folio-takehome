@@ -106,6 +106,14 @@ document.getElementById('timezone_offset_minutes').value = String(new Date().get
 
 <section class="card">
     <h2 class="card-title">Documents</h2>
+    <div class="search-control">
+        <div class="form-field">
+            <label for="document-search">Search by title</label>
+            <input type="text" id="document-search" placeholder="Start typing a document title" autocomplete="off">
+        </div>
+        <p class="meta" id="document-search-summary" aria-live="polite"></p>
+    </div>
+
     <?php if (empty($docs)): ?>
         <p class="empty">No documents yet.</p>
     <?php else: ?>
@@ -120,9 +128,9 @@ document.getElementById('timezone_offset_minutes').value = String(new Date().get
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="documents-table-body">
                 <?php foreach ($docs as $d): ?>
-                    <tr>
+                    <tr data-document-row data-title="<?= h(strtolower($d['title'])) ?>">
                         <td class="id"><?= h($d['readable_id'] ?? ('#' . $d['id'])) ?></td>
                         <td><?= h($d['title']) ?></td>
                         <td><?= h($d['creator_name']) ?></td>
@@ -133,7 +141,45 @@ document.getElementById('timezone_offset_minutes').value = String(new Date().get
                 <?php endforeach ?>
             </tbody>
         </table>
+        <p class="empty" id="document-search-empty" style="display: none;">No documents match your search.</p>
     <?php endif ?>
 </section>
+
+<script>
+const documentSearchInput = document.getElementById('document-search');
+const documentSearchSummary = document.getElementById('document-search-summary');
+const documentSearchEmpty = document.getElementById('document-search-empty');
+const documentRows = Array.from(document.querySelectorAll('[data-document-row]'));
+
+function updateDocumentSearch() {
+    const query = documentSearchInput.value.trim().toLowerCase();
+    let visibleCount = 0;
+
+    documentRows.forEach((row) => {
+        const matches = query === '' || row.dataset.title.includes(query);
+        row.style.display = matches ? '' : 'none';
+        if (matches) {
+            visibleCount++;
+        }
+    });
+
+    if (query === '') {
+        documentSearchSummary.textContent = '';
+        if (documentSearchEmpty) {
+            documentSearchEmpty.style.display = 'none';
+        }
+        return;
+    }
+
+    documentSearchSummary.textContent = `Showing ${visibleCount} result${visibleCount === 1 ? '' : 's'} for "${documentSearchInput.value.trim()}".`;
+    if (documentSearchEmpty) {
+        documentSearchEmpty.style.display = visibleCount === 0 ? '' : 'none';
+    }
+}
+
+if (documentSearchInput) {
+    documentSearchInput.addEventListener('input', updateDocumentSearch);
+}
+</script>
 
 <?php render_footer(); ?>
