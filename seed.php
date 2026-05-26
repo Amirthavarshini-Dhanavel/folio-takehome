@@ -9,13 +9,7 @@ if (file_exists($dbPath)) {
 
 $pdo = db();
 $pdo->exec(file_get_contents(__DIR__ . '/schema.sql'));
-
-$migrationFiles = glob(__DIR__ . '/migrations/*.sql') ?: [];
-sort($migrationFiles, SORT_STRING);
-
-foreach ($migrationFiles as $migrationFile) {
-    $pdo->exec(file_get_contents($migrationFile));
-}
+apply_migrations($pdo);
 
 $pdo->exec("
     INSERT INTO staff (email, name) VALUES
@@ -23,17 +17,22 @@ $pdo->exec("
 ");
 
 $stmt = $pdo->prepare('
-    INSERT INTO documents (title, body, created_by, publish_at)
-    VALUES (?, ?, 1, ?)
+    INSERT INTO documents (title, body, created_by, publish_at, readable_id)
+    VALUES (?, ?, 1, ?, ?)
 ');
 $stmt->execute([
-    'Welcome Packet',
+    'Welcome-Packet',
     "Welcome to Folio!\n\nThis is the body of your welcome packet.",
     current_publish_at(),
+    generate_readable_document_id('Welcome-Packet'),
 ]);
 $docId = (int) $pdo->lastInsertId();
 
-$token = random_token();
+$doc = [
+    'id' => $docId,
+    'title' => 'Welcome-Packet',
+];
+$token = generate_share_token($doc);
 $stmt = $pdo->prepare('
     INSERT INTO shares (document_id, token, recipient_email)
     VALUES (?, ?, ?)

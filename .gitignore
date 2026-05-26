@@ -1,5 +1,6 @@
 db.sqlite
 tests/test_db.sqlite
+tests/legacy_test_db.sqlite
 *.log
 .DS_Store
 .idea/

@@ -16,30 +16,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $timezoneOffset = null;
     }
 
-    if ($title === '' || $body === '') {
-        $error = 'Title and body are required.';
-    } else {
+    try {
+        validate_document_title($title);
+        if ($body === '') {
+            throw new InvalidArgumentException('Title and body are required.');
+        }
+        if (document_title_exists($title)) {
+            throw new InvalidArgumentException('A document with this title already exists.');
+        }
+
+        $publishAt = normalize_publish_at_input($publishAtInput, $timezoneOffset);
+        $readableId = generate_readable_document_id($title);
+    } catch (InvalidArgumentException $e) {
+        $error = $e->getMessage();
+    }
+    if ($error === null) {
         try {
-            $publishAt = normalize_publish_at_input($publishAtInput, $timezoneOffset);
-        } catch (InvalidArgumentException $e) {
-            $error = $e->getMessage();
+            $stmt = db()->prepare('
+                INSERT INTO documents (title, body, created_by, publish_at, readable_id)
+                VALUES (?, ?, ?, ?, ?)
+            ');
+            $stmt->execute([$title, $body, $staff['id'], $publishAt, $readableId]);
+        } catch (PDOException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+            $error = 'A document with this title already exists.';
         }
     }
 
     if ($error === null) {
-        $stmt = db()->prepare('
-            INSERT INTO documents (title, body, created_by, publish_at)
-            VALUES (?, ?, ?, ?)
-        ');
-        $stmt->execute([$title, $body, $staff['id'], $publishAt]);
         $docId = (int) db()->lastInsertId();
 
         audit_log('create', 'document', $docId, [
             'title' => $title,
+            'readable_id' => $readableId,
             'publish_at' => $publishAt,
         ]);
 
-        header('Location: /admin.php?created=' . $docId);
+        header('Location: /admin.php?created=' . rawurlencode($readableId));
         exit;
     }
 }
@@ -58,7 +73,7 @@ render_header('Admin', $staff);
 <p class="page-subtitle">Create documents and generate share links for recipients.</p>
 
 <?php if (!empty($_GET['created'])): ?>
-    <div class="banner banner-success">Document #<?= (int) $_GET['created'] ?> created.</div>
+    <div class="banner banner-success">Document <?= h($_GET['created']) ?> created.</div>
 <?php endif ?>
 
 <?php if ($error): ?>
@@ -97,7 +112,7 @@ document.getElementById('timezone_offset_minutes').value = String(new Date().get
         <table class="data">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>Document ID</th>
                     <th>Title</th>
                     <th>Creator</th>
                     <th>Created</th>
@@ -108,12 +123,12 @@ document.getElementById('timezone_offset_minutes').value = String(new Date().get
             <tbody>
                 <?php foreach ($docs as $d): ?>
                     <tr>
-                        <td class="id">#<?= (int) $d['id'] ?></td>
+                        <td class="id"><?= h($d['readable_id'] ?? ('#' . $d['id'])) ?></td>
                         <td><?= h($d['title']) ?></td>
                         <td><?= h($d['creator_name']) ?></td>
                         <td><?= h($d['created_at']) ?></td>
                         <td><?= h($d['publish_at'] ?? '') ?></td>
-                        <td><a href="/share.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Create share →</a></td>
+                        <td><a href="/share.php?doc=<?= h(rawurlencode($d['readable_id'] ?? (string) $d['id'])) ?>" class="btn-link">Create share →</a></td>
                     </tr>
                 <?php endforeach ?>
             </tbody>
