@@ -3,11 +3,21 @@
 require __DIR__ . '/lib/bootstrap.php';
 
 $dbPath = db_path();
-if (file_exists($dbPath)) {
-    unlink($dbPath);
+if (file_exists($dbPath) && !@unlink($dbPath)) {
+    $pdo = db();
+    $pdo->exec('PRAGMA foreign_keys = OFF');
+    $tables = $pdo->query("
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+    ")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($tables as $table) {
+        $pdo->exec('DROP TABLE IF EXISTS "' . str_replace('"', '""', $table) . '"');
+    }
+    $pdo->exec('PRAGMA foreign_keys = ON');
 }
 
-$pdo = db();
+$pdo = $pdo ?? db();
 $pdo->exec(file_get_contents(__DIR__ . '/schema.sql'));
 apply_migrations($pdo);
 
